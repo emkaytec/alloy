@@ -8,48 +8,64 @@ import (
 const KindGitHubRepository = "GitHubRepository"
 
 type GitHubRepositorySpec struct {
-	Owner               string                                   `yaml:"owner"`
-	Name                string                                   `yaml:"name"`
-	Visibility          string                                   `yaml:"visibility,omitempty"`
-	Description         string                                   `yaml:"description,omitempty"`
-	Homepage            string                                   `yaml:"homepage,omitempty"`
-	AutoInit            bool                                     `yaml:"autoInit,omitempty"`
-	DefaultBranch       string                                   `yaml:"defaultBranch,omitempty"`
-	Topics              []string                                 `yaml:"topics,omitempty"`
-	Archived            *bool                                    `yaml:"archived,omitempty"`
-	Features            *GitHubRepositoryFeaturesSpec            `yaml:"features,omitempty"`
+	// Owner and Name form the stable repository identity. Reconciliation does not
+	// treat transfer or rename as an ordinary in-place update.
+	Owner string `yaml:"owner"`
+	Name  string `yaml:"name"`
+	// Nil means unmanaged. Non-nil means reconcile the provided value, including
+	// explicit empty strings where supported by the downstream API.
+	Visibility  *string `yaml:"visibility,omitempty"`
+	Description *string `yaml:"description,omitempty"`
+	Homepage    *string `yaml:"homepage,omitempty"`
+	// AutoInit is a create-time-only input honored when creating a repository.
+	AutoInit      bool    `yaml:"autoInit,omitempty"`
+	DefaultBranch *string `yaml:"defaultBranch,omitempty"`
+	// Omitted means unmanaged; a present empty list means manage and clear.
+	Topics   []string                      `yaml:"topics,omitempty"`
+	Archived *bool                         `yaml:"archived,omitempty"`
+	Features *GitHubRepositoryFeaturesSpec `yaml:"features,omitempty"`
+	// Initialization inputs are honored during repository creation and should not
+	// be treated as steady-state reconciliation for existing repositories.
 	Initialization      *GitHubRepositoryInitializationSpec      `yaml:"initialization,omitempty"`
 	MergePolicy         *GitHubRepositoryMergePolicySpec         `yaml:"mergePolicy,omitempty"`
 	SecurityAndAnalysis *GitHubRepositorySecurityAndAnalysisSpec `yaml:"securityAndAnalysis,omitempty"`
-	Pages               *GitHubRepositoryPagesSpec               `yaml:"pages,omitempty"`
-	CustomProperties    []GitHubRepositoryCustomPropertySpec     `yaml:"customProperties,omitempty"`
-	Branches            []GitHubRepositoryBranchSpec             `yaml:"branches,omitempty"`
+	// Nil means Pages are unmanaged; a present object means reconcile Pages.
+	Pages *GitHubRepositoryPagesSpec `yaml:"pages,omitempty"`
+	// Omitted means unmanaged; a present empty list means manage and clear.
+	CustomProperties []GitHubRepositoryCustomPropertySpec `yaml:"customProperties,omitempty"`
+	// Omitted means unmanaged; a present empty list means manage and clear.
+	Branches []GitHubRepositoryBranchSpec `yaml:"branches,omitempty"`
 }
 
 type GitHubRepositoryFeaturesSpec struct {
-	HasIssues    *bool `yaml:"hasIssues,omitempty"`
-	HasProjects  *bool `yaml:"hasProjects,omitempty"`
-	HasWiki      *bool `yaml:"hasWiki,omitempty"`
+	HasIssues   *bool `yaml:"hasIssues,omitempty"`
+	HasProjects *bool `yaml:"hasProjects,omitempty"`
+	HasWiki     *bool `yaml:"hasWiki,omitempty"`
+	// Deprecated: hasDownloads is unsupported for reconciliation because current
+	// GitHub API management semantics are not reliable enough for safe drift
+	// correction.
 	HasDownloads *bool `yaml:"hasDownloads,omitempty"`
 }
 
 type GitHubRepositoryInitializationSpec struct {
+	// GitignoreTemplate, LicenseTemplate, and IsTemplate are create-time-only
+	// inputs honored when creating a repository.
 	GitignoreTemplate string `yaml:"gitignoreTemplate,omitempty"`
 	LicenseTemplate   string `yaml:"licenseTemplate,omitempty"`
 	IsTemplate        *bool  `yaml:"isTemplate,omitempty"`
 }
 
 type GitHubRepositoryMergePolicySpec struct {
-	AllowSquashMerge         *bool  `yaml:"allowSquashMerge,omitempty"`
-	AllowMergeCommit         *bool  `yaml:"allowMergeCommit,omitempty"`
-	AllowRebaseMerge         *bool  `yaml:"allowRebaseMerge,omitempty"`
-	AllowAutoMerge           *bool  `yaml:"allowAutoMerge,omitempty"`
-	AllowUpdateBranch        *bool  `yaml:"allowUpdateBranch,omitempty"`
-	DeleteBranchOnMerge      *bool  `yaml:"deleteBranchOnMerge,omitempty"`
-	SquashMergeCommitTitle   string `yaml:"squashMergeCommitTitle,omitempty"`
-	SquashMergeCommitMessage string `yaml:"squashMergeCommitMessage,omitempty"`
-	MergeCommitTitle         string `yaml:"mergeCommitTitle,omitempty"`
-	MergeCommitMessage       string `yaml:"mergeCommitMessage,omitempty"`
+	AllowSquashMerge         *bool   `yaml:"allowSquashMerge,omitempty"`
+	AllowMergeCommit         *bool   `yaml:"allowMergeCommit,omitempty"`
+	AllowRebaseMerge         *bool   `yaml:"allowRebaseMerge,omitempty"`
+	AllowAutoMerge           *bool   `yaml:"allowAutoMerge,omitempty"`
+	AllowUpdateBranch        *bool   `yaml:"allowUpdateBranch,omitempty"`
+	DeleteBranchOnMerge      *bool   `yaml:"deleteBranchOnMerge,omitempty"`
+	SquashMergeCommitTitle   *string `yaml:"squashMergeCommitTitle,omitempty"`
+	SquashMergeCommitMessage *string `yaml:"squashMergeCommitMessage,omitempty"`
+	MergeCommitTitle         *string `yaml:"mergeCommitTitle,omitempty"`
+	MergeCommitMessage       *string `yaml:"mergeCommitMessage,omitempty"`
 }
 
 type GitHubRepositorySecurityAndAnalysisSpec struct {
@@ -68,8 +84,8 @@ type GitHubRepositorySecuritySettingSpec struct {
 }
 
 type GitHubRepositoryPagesSpec struct {
-	BuildType     string                           `yaml:"buildType,omitempty"`
-	CNAME         string                           `yaml:"cname,omitempty"`
+	BuildType     *string                          `yaml:"buildType,omitempty"`
+	CNAME         *string                          `yaml:"cname,omitempty"`
 	HTTPSEnforced *bool                            `yaml:"httpsEnforced,omitempty"`
 	Source        *GitHubRepositoryPagesSourceSpec `yaml:"source,omitempty"`
 }
@@ -171,8 +187,8 @@ func (m GitHubRepositoryManifest) Validate() error {
 }
 
 func (s GitHubRepositorySpec) Validate() error {
-	if s.Visibility != "" && !contains([]string{"public", "private", "internal"}, s.Visibility) {
-		return fmt.Errorf("unsupported spec.visibility %q", s.Visibility)
+	if s.Visibility != nil && *s.Visibility != "" && !contains([]string{"public", "private", "internal"}, *s.Visibility) {
+		return fmt.Errorf("unsupported spec.visibility %q", *s.Visibility)
 	}
 
 	if err := validateUniqueNonEmptyStrings("spec.topics", s.Topics); err != nil {
@@ -220,6 +236,10 @@ func validateFeaturesSpec(spec *GitHubRepositoryFeaturesSpec) error {
 		return nil
 	}
 
+	if spec.HasDownloads != nil {
+		return fmt.Errorf("spec.features.hasDownloads is deprecated and unsupported")
+	}
+
 	return nil
 }
 
@@ -244,27 +264,33 @@ func validateMergePolicySpec(spec *GitHubRepositoryMergePolicySpec) error {
 		return nil
 	}
 
-	if spec.SquashMergeCommitTitle != "" && !contains([]string{"PR_TITLE", "COMMIT_OR_PR_TITLE"}, spec.SquashMergeCommitTitle) {
-		return fmt.Errorf("unsupported spec.mergePolicy.squashMergeCommitTitle %q", spec.SquashMergeCommitTitle)
+	if spec.SquashMergeCommitTitle != nil && *spec.SquashMergeCommitTitle != "" &&
+		!contains([]string{"PR_TITLE", "COMMIT_OR_PR_TITLE"}, *spec.SquashMergeCommitTitle) {
+		return fmt.Errorf("unsupported spec.mergePolicy.squashMergeCommitTitle %q", *spec.SquashMergeCommitTitle)
 	}
 
-	if spec.SquashMergeCommitMessage != "" && !contains([]string{"PR_BODY", "COMMIT_MESSAGES", "BLANK"}, spec.SquashMergeCommitMessage) {
-		return fmt.Errorf("unsupported spec.mergePolicy.squashMergeCommitMessage %q", spec.SquashMergeCommitMessage)
+	if spec.SquashMergeCommitMessage != nil && *spec.SquashMergeCommitMessage != "" &&
+		!contains([]string{"PR_BODY", "COMMIT_MESSAGES", "BLANK"}, *spec.SquashMergeCommitMessage) {
+		return fmt.Errorf("unsupported spec.mergePolicy.squashMergeCommitMessage %q", *spec.SquashMergeCommitMessage)
 	}
 
-	if spec.SquashMergeCommitMessage != "" && spec.SquashMergeCommitTitle == "" {
+	if spec.SquashMergeCommitMessage != nil && *spec.SquashMergeCommitMessage != "" &&
+		(spec.SquashMergeCommitTitle == nil || *spec.SquashMergeCommitTitle == "") {
 		return fmt.Errorf("spec.mergePolicy.squashMergeCommitTitle is required when spec.mergePolicy.squashMergeCommitMessage is set")
 	}
 
-	if spec.MergeCommitTitle != "" && !contains([]string{"PR_TITLE", "MERGE_MESSAGE"}, spec.MergeCommitTitle) {
-		return fmt.Errorf("unsupported spec.mergePolicy.mergeCommitTitle %q", spec.MergeCommitTitle)
+	if spec.MergeCommitTitle != nil && *spec.MergeCommitTitle != "" &&
+		!contains([]string{"PR_TITLE", "MERGE_MESSAGE"}, *spec.MergeCommitTitle) {
+		return fmt.Errorf("unsupported spec.mergePolicy.mergeCommitTitle %q", *spec.MergeCommitTitle)
 	}
 
-	if spec.MergeCommitMessage != "" && !contains([]string{"PR_BODY", "PR_TITLE", "BLANK"}, spec.MergeCommitMessage) {
-		return fmt.Errorf("unsupported spec.mergePolicy.mergeCommitMessage %q", spec.MergeCommitMessage)
+	if spec.MergeCommitMessage != nil && *spec.MergeCommitMessage != "" &&
+		!contains([]string{"PR_BODY", "PR_TITLE", "BLANK"}, *spec.MergeCommitMessage) {
+		return fmt.Errorf("unsupported spec.mergePolicy.mergeCommitMessage %q", *spec.MergeCommitMessage)
 	}
 
-	if spec.MergeCommitMessage != "" && spec.MergeCommitTitle == "" {
+	if spec.MergeCommitMessage != nil && *spec.MergeCommitMessage != "" &&
+		(spec.MergeCommitTitle == nil || *spec.MergeCommitTitle == "") {
 		return fmt.Errorf("spec.mergePolicy.mergeCommitTitle is required when spec.mergePolicy.mergeCommitMessage is set")
 	}
 
@@ -309,8 +335,8 @@ func validatePagesSpec(spec *GitHubRepositoryPagesSpec) error {
 		return nil
 	}
 
-	if spec.BuildType != "" && !contains([]string{"legacy", "workflow"}, spec.BuildType) {
-		return fmt.Errorf("unsupported spec.pages.buildType %q", spec.BuildType)
+	if spec.BuildType != nil && *spec.BuildType != "" && !contains([]string{"legacy", "workflow"}, *spec.BuildType) {
+		return fmt.Errorf("unsupported spec.pages.buildType %q", *spec.BuildType)
 	}
 
 	if spec.Source == nil {

@@ -30,11 +30,11 @@ func TestGitHubRepositoryManifestValidate(t *testing.T) {
 		GitHubRepositorySpec{
 			Owner:         "example-org",
 			Name:          "example-repo",
-			Visibility:    "internal",
-			Description:   "Repository reconciled through Anvil",
-			Homepage:      "https://example.com",
+			Visibility:    stringPtr("internal"),
+			Description:   stringPtr("Repository reconciled through Anvil"),
+			Homepage:      stringPtr("https://example.com"),
 			AutoInit:      true,
-			DefaultBranch: "main",
+			DefaultBranch: stringPtr("main"),
 			Topics:        []string{"platform", "anvil"},
 			Features: &GitHubRepositoryFeaturesSpec{
 				HasIssues:   boolPtr(true),
@@ -52,8 +52,8 @@ func TestGitHubRepositoryManifestValidate(t *testing.T) {
 				AllowRebaseMerge:         boolPtr(true),
 				AllowAutoMerge:           boolPtr(true),
 				DeleteBranchOnMerge:      boolPtr(true),
-				SquashMergeCommitTitle:   "PR_TITLE",
-				SquashMergeCommitMessage: "PR_BODY",
+				SquashMergeCommitTitle:   stringPtr("PR_TITLE"),
+				SquashMergeCommitMessage: stringPtr("PR_BODY"),
 			},
 			SecurityAndAnalysis: &GitHubRepositorySecurityAndAnalysisSpec{
 				AdvancedSecurity:             &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
@@ -61,7 +61,7 @@ func TestGitHubRepositoryManifestValidate(t *testing.T) {
 				SecretScanningPushProtection: &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
 			},
 			Pages: &GitHubRepositoryPagesSpec{
-				BuildType:     "legacy",
+				BuildType:     stringPtr("legacy"),
 				HTTPSEnforced: boolPtr(true),
 				Source: &GitHubRepositoryPagesSourceSpec{
 					Branch: "main",
@@ -130,7 +130,7 @@ func TestGitHubRepositoryManifestValidateRequiresSquashTitleWhenMessageConfigure
 			Owner: "example-org",
 			Name:  "example-repo",
 			MergePolicy: &GitHubRepositoryMergePolicySpec{
-				SquashMergeCommitMessage: "PR_BODY",
+				SquashMergeCommitMessage: stringPtr("PR_BODY"),
 			},
 		},
 	)
@@ -229,10 +229,68 @@ func TestGitHubRepositoryManifestValidateRejectsLinearHistoryWithoutCompatibleMe
 	}
 }
 
+func TestGitHubRepositoryManifestValidateAllowsExplicitEmptyOptionalStrings(t *testing.T) {
+	t.Parallel()
+
+	manifest := NewGitHubRepositoryManifest(
+		Metadata{Name: "example-repo"},
+		GitHubRepositorySpec{
+			Owner:         "example-org",
+			Name:          "example-repo",
+			Visibility:    stringPtr(""),
+			Description:   stringPtr(""),
+			Homepage:      stringPtr(""),
+			DefaultBranch: stringPtr(""),
+			MergePolicy: &GitHubRepositoryMergePolicySpec{
+				SquashMergeCommitTitle:   stringPtr(""),
+				SquashMergeCommitMessage: stringPtr(""),
+				MergeCommitTitle:         stringPtr(""),
+				MergeCommitMessage:       stringPtr(""),
+			},
+			Pages: &GitHubRepositoryPagesSpec{
+				BuildType: stringPtr(""),
+				CNAME:     stringPtr(""),
+			},
+		},
+	)
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+}
+
+func TestGitHubRepositoryManifestValidateRejectsDeprecatedHasDownloads(t *testing.T) {
+	t.Parallel()
+
+	manifest := NewGitHubRepositoryManifest(
+		Metadata{Name: "example-repo"},
+		GitHubRepositorySpec{
+			Owner: "example-org",
+			Name:  "example-repo",
+			Features: &GitHubRepositoryFeaturesSpec{
+				HasDownloads: boolPtr(true),
+			},
+		},
+	)
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if err.Error() != "spec.features.hasDownloads is deprecated and unsupported" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }
 
 func intPtr(v int) *int {
+	return &v
+}
+
+func stringPtr(v string) *string {
 	return &v
 }
