@@ -1,4 +1,4 @@
-module github.com/wiscotrashpanda/alloy
+module github.com/emkaytec/alloy
 
 go 1.26
 
