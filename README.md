@@ -70,3 +70,91 @@ spec:
   #         requireCodeOwnerReviews: true
   #         requiredApprovingReviewCount: 1
 ```
+
+Example `HCPTerraformWorkspace` manifest:
+
+```yaml
+apiVersion: anvil.example.io/v1alpha1
+kind: HCPTerraformWorkspace
+metadata:
+  name: platform-workspace
+spec:
+  organization: emkaytec
+  name: emkaytec-hcp-terraform
+  projectID: prj-abc123
+  description: Control plane workspace for shared HCP Terraform infrastructure
+  terraformVersion: ~> 1.14.8
+  workingDirectory: terraform
+  executionMode: agent
+  agentPoolID: apool-abc123
+  allowDestroyPlan: true
+  assessmentsEnabled: true
+  autoApply: false
+  autoApplyRunTrigger: true
+  autoDestroyActivityDuration: 14d
+  fileTriggersEnabled: true
+  globalRemoteState: false
+  queueAllRuns: false
+  sourceName: anvil
+  sourceURL: https://github.com/emkaytec/anvil
+  speculativeEnabled: true
+  sshKeyID: sshkey-abc123
+  settingOverwrites:
+    executionMode: true
+    terraformVersion: true
+  tags:
+    - platform
+    - hcp
+  tagBindings:
+    - key: env
+      value: prod
+    - key: service
+      value: platform
+  triggerPatterns:
+    - terraform/**/*.tf
+    - modules/**/*.tf
+  triggerPrefixes:
+    - terraform/
+    - modules/
+  remoteStateConsumerIDs:
+    - ws-consumer-1
+    - ws-consumer-2
+  vcsRepo:
+    identifier: emkaytec/hcp-terraform
+    branch: main
+    ingressSubmodules: false
+    oauthTokenID: ot-abc123
+    tagsRegex: ^v[0-9]+\.[0-9]+\.[0-9]+$
+  variables:
+    - key: AWS_REGION
+      category: env
+      value: us-east-1
+      description: Default AWS region for remote runs
+    - key: account_id
+      category: terraform
+      value: '"123456789012"'
+      hcl: true
+  variableSetIDs:
+    - varset-abc123
+  runTriggers:
+    - sourceWorkspaceID: ws-network
+  teamAccess:
+    - teamName: platform
+      access: admin
+    - teamName: operators
+      access: custom
+      runs: apply
+      variables: write
+      stateVersions: read
+      workspaceLocking: true
+  notifications:
+    - name: run-events
+      destinationType: generic
+      enabled: true
+      url: https://hooks.example.com/tfc
+      token: shared-secret
+      triggers:
+        - run:created
+        - run:completed
+        - run:errored
+```
