@@ -41,57 +41,12 @@ func TestGitHubRepositoryManifestValidate(t *testing.T) {
 				HasProjects: boolPtr(false),
 				HasWiki:     boolPtr(false),
 			},
-			Initialization: &GitHubRepositoryInitializationSpec{
-				GitignoreTemplate: "Go",
-				LicenseTemplate:   "mit",
-				IsTemplate:        boolPtr(false),
-			},
 			MergePolicy: &GitHubRepositoryMergePolicySpec{
-				AllowSquashMerge:         boolPtr(true),
-				AllowMergeCommit:         boolPtr(false),
-				AllowRebaseMerge:         boolPtr(true),
-				AllowAutoMerge:           boolPtr(true),
-				DeleteBranchOnMerge:      boolPtr(true),
-				SquashMergeCommitTitle:   stringPtr("PR_TITLE"),
-				SquashMergeCommitMessage: stringPtr("PR_BODY"),
-			},
-			SecurityAndAnalysis: &GitHubRepositorySecurityAndAnalysisSpec{
-				AdvancedSecurity:             &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
-				SecretScanning:               &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
-				SecretScanningPushProtection: &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
-			},
-			Pages: &GitHubRepositoryPagesSpec{
-				BuildType:     stringPtr("legacy"),
-				HTTPSEnforced: boolPtr(true),
-				Source: &GitHubRepositoryPagesSourceSpec{
-					Branch: "main",
-					Path:   "/docs",
-				},
-			},
-			CustomProperties: []GitHubRepositoryCustomPropertySpec{
-				{Name: "service", Value: "alloy"},
-				{Name: "tier", Value: "platform"},
-			},
-			Branches: []GitHubRepositoryBranchSpec{
-				{
-					Name: "main",
-					Protection: &GitHubRepositoryBranchProtectionSpec{
-						RequiredStatusChecks: &GitHubRequiredStatusChecksSpec{
-							Strict: true,
-							Checks: []GitHubRequiredStatusCheckSpec{
-								{Context: "ci/build"},
-								{Context: "ci/test"},
-							},
-						},
-						EnforceAdmins:         boolPtr(true),
-						RequiredLinearHistory: boolPtr(true),
-						PullRequestReviews: &GitHubPullRequestReviewsSpec{
-							DismissStaleReviews:          boolPtr(true),
-							RequireCodeOwnerReviews:      boolPtr(true),
-							RequiredApprovingReviewCount: intPtr(2),
-						},
-					},
-				},
+				AllowSquashMerge:    boolPtr(true),
+				AllowMergeCommit:    boolPtr(false),
+				AllowRebaseMerge:    boolPtr(true),
+				AllowAutoMerge:      boolPtr(true),
+				DeleteBranchOnMerge: boolPtr(true),
 			},
 		},
 	)
@@ -100,6 +55,54 @@ func TestGitHubRepositoryManifestValidate(t *testing.T) {
 		t.Fatalf("Validate returned error: %v", err)
 	}
 }
+
+/*
+Legacy broader-shape fixture retained as commented reference:
+
+Initialization: &GitHubRepositoryInitializationSpec{
+	GitignoreTemplate: "Go",
+	LicenseTemplate:   "mit",
+	IsTemplate:        boolPtr(false),
+},
+SecurityAndAnalysis: &GitHubRepositorySecurityAndAnalysisSpec{
+	AdvancedSecurity:             &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
+	SecretScanning:               &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
+	SecretScanningPushProtection: &GitHubRepositorySecuritySettingSpec{Status: "enabled"},
+},
+Pages: &GitHubRepositoryPagesSpec{
+	BuildType:     stringPtr("legacy"),
+	HTTPSEnforced: boolPtr(true),
+	Source: &GitHubRepositoryPagesSourceSpec{
+		Branch: "main",
+		Path:   "/docs",
+	},
+},
+CustomProperties: []GitHubRepositoryCustomPropertySpec{
+	{Name: "service", Value: "alloy"},
+	{Name: "tier", Value: "platform"},
+},
+Branches: []GitHubRepositoryBranchSpec{
+	{
+		Name: "main",
+		Protection: &GitHubRepositoryBranchProtectionSpec{
+			RequiredStatusChecks: &GitHubRequiredStatusChecksSpec{
+				Strict: true,
+				Checks: []GitHubRequiredStatusCheckSpec{
+					{Context: "ci/build"},
+					{Context: "ci/test"},
+				},
+			},
+			EnforceAdmins:         boolPtr(true),
+			RequiredLinearHistory: boolPtr(true),
+			PullRequestReviews: &GitHubPullRequestReviewsSpec{
+				DismissStaleReviews:          boolPtr(true),
+				RequireCodeOwnerReviews:      boolPtr(true),
+				RequiredApprovingReviewCount: intPtr(2),
+			},
+		},
+	},
+},
+*/
 
 func TestGitHubRepositoryManifestValidateRequiresName(t *testing.T) {
 	t.Parallel()
@@ -121,17 +124,15 @@ func TestGitHubRepositoryManifestValidateRequiresName(t *testing.T) {
 	}
 }
 
-func TestGitHubRepositoryManifestValidateRequiresSquashTitleWhenMessageConfigured(t *testing.T) {
+func TestGitHubRepositoryManifestValidateRejectsInvalidVisibility(t *testing.T) {
 	t.Parallel()
 
 	manifest := NewGitHubRepositoryManifest(
 		Metadata{Name: "example-repo"},
 		GitHubRepositorySpec{
-			Owner: "example-org",
-			Name:  "example-repo",
-			MergePolicy: &GitHubRepositoryMergePolicySpec{
-				SquashMergeCommitMessage: stringPtr("PR_BODY"),
-			},
+			Owner:      "example-org",
+			Name:       "example-repo",
+			Visibility: stringPtr("secret"),
 		},
 	)
 
@@ -140,22 +141,20 @@ func TestGitHubRepositoryManifestValidateRequiresSquashTitleWhenMessageConfigure
 		t.Fatal("expected validation error")
 	}
 
-	if err.Error() != "spec.mergePolicy.squashMergeCommitTitle is required when spec.mergePolicy.squashMergeCommitMessage is set" {
+	if err.Error() != `unsupported spec.visibility "secret"` {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestGitHubRepositoryManifestValidateRejectsInvalidSecurityStatus(t *testing.T) {
+func TestGitHubRepositoryManifestValidateRejectsBlankTopics(t *testing.T) {
 	t.Parallel()
 
 	manifest := NewGitHubRepositoryManifest(
 		Metadata{Name: "example-repo"},
 		GitHubRepositorySpec{
-			Owner: "example-org",
-			Name:  "example-repo",
-			SecurityAndAnalysis: &GitHubRepositorySecurityAndAnalysisSpec{
-				SecretScanning: &GitHubRepositorySecuritySettingSpec{Status: "maybe"},
-			},
+			Owner:  "example-org",
+			Name:   "example-repo",
+			Topics: []string{"platform", " "},
 		},
 	)
 
@@ -164,25 +163,20 @@ func TestGitHubRepositoryManifestValidateRejectsInvalidSecurityStatus(t *testing
 		t.Fatal("expected validation error")
 	}
 
-	if err.Error() != `unsupported spec.securityAndAnalysis.secretScanning.status "maybe"` {
+	if err.Error() != "spec.topics must not contain blank values" {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestGitHubRepositoryManifestValidateRejectsInvalidPagesSourcePath(t *testing.T) {
+func TestGitHubRepositoryManifestValidateRejectsDuplicateTopics(t *testing.T) {
 	t.Parallel()
 
 	manifest := NewGitHubRepositoryManifest(
 		Metadata{Name: "example-repo"},
 		GitHubRepositorySpec{
-			Owner: "example-org",
-			Name:  "example-repo",
-			Pages: &GitHubRepositoryPagesSpec{
-				Source: &GitHubRepositoryPagesSourceSpec{
-					Branch: "main",
-					Path:   "/site",
-				},
-			},
+			Owner:  "example-org",
+			Name:   "example-repo",
+			Topics: []string{"platform", "Platform"},
 		},
 	)
 
@@ -191,40 +185,7 @@ func TestGitHubRepositoryManifestValidateRejectsInvalidPagesSourcePath(t *testin
 		t.Fatal("expected validation error")
 	}
 
-	if err.Error() != `unsupported spec.pages.source.path "/site"` {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestGitHubRepositoryManifestValidateRejectsLinearHistoryWithoutCompatibleMergeStrategy(t *testing.T) {
-	t.Parallel()
-
-	manifest := NewGitHubRepositoryManifest(
-		Metadata{Name: "example-repo"},
-		GitHubRepositorySpec{
-			Owner: "example-org",
-			Name:  "example-repo",
-			MergePolicy: &GitHubRepositoryMergePolicySpec{
-				AllowSquashMerge: boolPtr(false),
-				AllowRebaseMerge: boolPtr(false),
-			},
-			Branches: []GitHubRepositoryBranchSpec{
-				{
-					Name: "main",
-					Protection: &GitHubRepositoryBranchProtectionSpec{
-						RequiredLinearHistory: boolPtr(true),
-					},
-				},
-			},
-		},
-	)
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-
-	if err.Error() != "spec.mergePolicy must allow squash or rebase merges when branch protection requires linear history" {
+	if err.Error() != `spec.topics contains duplicate value "Platform"` {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -241,16 +202,6 @@ func TestGitHubRepositoryManifestValidateAllowsExplicitEmptyOptionalStrings(t *t
 			Description:   stringPtr(""),
 			Homepage:      stringPtr(""),
 			DefaultBranch: stringPtr(""),
-			MergePolicy: &GitHubRepositoryMergePolicySpec{
-				SquashMergeCommitTitle:   stringPtr(""),
-				SquashMergeCommitMessage: stringPtr(""),
-				MergeCommitTitle:         stringPtr(""),
-				MergeCommitMessage:       stringPtr(""),
-			},
-			Pages: &GitHubRepositoryPagesSpec{
-				BuildType: stringPtr(""),
-				CNAME:     stringPtr(""),
-			},
 		},
 	)
 
@@ -259,29 +210,15 @@ func TestGitHubRepositoryManifestValidateAllowsExplicitEmptyOptionalStrings(t *t
 	}
 }
 
-func TestGitHubRepositoryManifestValidateRejectsDeprecatedHasDownloads(t *testing.T) {
-	t.Parallel()
+/*
+Legacy removed tests retained as commented reference:
 
-	manifest := NewGitHubRepositoryManifest(
-		Metadata{Name: "example-repo"},
-		GitHubRepositorySpec{
-			Owner: "example-org",
-			Name:  "example-repo",
-			Features: &GitHubRepositoryFeaturesSpec{
-				HasDownloads: boolPtr(true),
-			},
-		},
-	)
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-
-	if err.Error() != "spec.features.hasDownloads is deprecated and unsupported" {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
+func TestGitHubRepositoryManifestValidateRequiresSquashTitleWhenMessageConfigured(t *testing.T)
+func TestGitHubRepositoryManifestValidateRejectsInvalidSecurityStatus(t *testing.T)
+func TestGitHubRepositoryManifestValidateRejectsInvalidPagesSourcePath(t *testing.T)
+func TestGitHubRepositoryManifestValidateRejectsLinearHistoryWithoutCompatibleMergeStrategy(t *testing.T)
+func TestGitHubRepositoryManifestValidateRejectsDeprecatedHasDownloads(t *testing.T)
+*/
 
 func boolPtr(v bool) *bool {
 	return &v

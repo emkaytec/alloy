@@ -21,51 +21,50 @@ type GitHubRepositorySpec struct {
 	AutoInit      bool    `yaml:"autoInit,omitempty"`
 	DefaultBranch *string `yaml:"defaultBranch,omitempty"`
 	// Omitted means unmanaged; a present empty list means manage and clear.
-	Topics   []string                      `yaml:"topics,omitempty"`
-	Archived *bool                         `yaml:"archived,omitempty"`
-	Features *GitHubRepositoryFeaturesSpec `yaml:"features,omitempty"`
-	// Initialization inputs are honored during repository creation and should not
-	// be treated as steady-state reconciliation for existing repositories.
-	Initialization      *GitHubRepositoryInitializationSpec      `yaml:"initialization,omitempty"`
-	MergePolicy         *GitHubRepositoryMergePolicySpec         `yaml:"mergePolicy,omitempty"`
-	SecurityAndAnalysis *GitHubRepositorySecurityAndAnalysisSpec `yaml:"securityAndAnalysis,omitempty"`
-	// Nil means Pages are unmanaged; a present object means reconcile Pages.
-	Pages *GitHubRepositoryPagesSpec `yaml:"pages,omitempty"`
-	// Omitted means unmanaged; a present empty list means manage and clear.
-	CustomProperties []GitHubRepositoryCustomPropertySpec `yaml:"customProperties,omitempty"`
-	// Omitted means unmanaged; a present empty list means manage and clear.
-	Branches []GitHubRepositoryBranchSpec `yaml:"branches,omitempty"`
+	Topics      []string                         `yaml:"topics,omitempty"`
+	Features    *GitHubRepositoryFeaturesSpec    `yaml:"features,omitempty"`
+	MergePolicy *GitHubRepositoryMergePolicySpec `yaml:"mergePolicy,omitempty"`
+
+	// Narrowed out of the active v1alpha1 schema for now:
+	// Archived *bool `yaml:"archived,omitempty"`
+	// Initialization *GitHubRepositoryInitializationSpec `yaml:"initialization,omitempty"`
+	// SecurityAndAnalysis *GitHubRepositorySecurityAndAnalysisSpec `yaml:"securityAndAnalysis,omitempty"`
+	// Pages *GitHubRepositoryPagesSpec `yaml:"pages,omitempty"`
+	// CustomProperties []GitHubRepositoryCustomPropertySpec `yaml:"customProperties,omitempty"`
+	// Branches []GitHubRepositoryBranchSpec `yaml:"branches,omitempty"`
 }
 
 type GitHubRepositoryFeaturesSpec struct {
 	HasIssues   *bool `yaml:"hasIssues,omitempty"`
 	HasProjects *bool `yaml:"hasProjects,omitempty"`
 	HasWiki     *bool `yaml:"hasWiki,omitempty"`
-	// Deprecated: hasDownloads is unsupported for reconciliation because current
-	// GitHub API management semantics are not reliable enough for safe drift
-	// correction.
-	HasDownloads *bool `yaml:"hasDownloads,omitempty"`
-}
 
-type GitHubRepositoryInitializationSpec struct {
-	// GitignoreTemplate, LicenseTemplate, and IsTemplate are create-time-only
-	// inputs honored when creating a repository.
-	GitignoreTemplate string `yaml:"gitignoreTemplate,omitempty"`
-	LicenseTemplate   string `yaml:"licenseTemplate,omitempty"`
-	IsTemplate        *bool  `yaml:"isTemplate,omitempty"`
+	// Narrowed out of the active v1alpha1 schema for now:
+	// HasDownloads *bool `yaml:"hasDownloads,omitempty"`
 }
 
 type GitHubRepositoryMergePolicySpec struct {
-	AllowSquashMerge         *bool   `yaml:"allowSquashMerge,omitempty"`
-	AllowMergeCommit         *bool   `yaml:"allowMergeCommit,omitempty"`
-	AllowRebaseMerge         *bool   `yaml:"allowRebaseMerge,omitempty"`
-	AllowAutoMerge           *bool   `yaml:"allowAutoMerge,omitempty"`
-	AllowUpdateBranch        *bool   `yaml:"allowUpdateBranch,omitempty"`
-	DeleteBranchOnMerge      *bool   `yaml:"deleteBranchOnMerge,omitempty"`
-	SquashMergeCommitTitle   *string `yaml:"squashMergeCommitTitle,omitempty"`
-	SquashMergeCommitMessage *string `yaml:"squashMergeCommitMessage,omitempty"`
-	MergeCommitTitle         *string `yaml:"mergeCommitTitle,omitempty"`
-	MergeCommitMessage       *string `yaml:"mergeCommitMessage,omitempty"`
+	AllowSquashMerge    *bool `yaml:"allowSquashMerge,omitempty"`
+	AllowMergeCommit    *bool `yaml:"allowMergeCommit,omitempty"`
+	AllowRebaseMerge    *bool `yaml:"allowRebaseMerge,omitempty"`
+	AllowAutoMerge      *bool `yaml:"allowAutoMerge,omitempty"`
+	AllowUpdateBranch   *bool `yaml:"allowUpdateBranch,omitempty"`
+	DeleteBranchOnMerge *bool `yaml:"deleteBranchOnMerge,omitempty"`
+
+	// Narrowed out of the active v1alpha1 schema for now:
+	// SquashMergeCommitTitle *string `yaml:"squashMergeCommitTitle,omitempty"`
+	// SquashMergeCommitMessage *string `yaml:"squashMergeCommitMessage,omitempty"`
+	// MergeCommitTitle *string `yaml:"mergeCommitTitle,omitempty"`
+	// MergeCommitMessage *string `yaml:"mergeCommitMessage,omitempty"`
+}
+
+/*
+Previous broader GitHubRepository-adjacent shapes retained as commented reference:
+
+type GitHubRepositoryInitializationSpec struct {
+	GitignoreTemplate string `yaml:"gitignoreTemplate,omitempty"`
+	LicenseTemplate   string `yaml:"licenseTemplate,omitempty"`
+	IsTemplate        *bool  `yaml:"isTemplate,omitempty"`
 }
 
 type GitHubRepositorySecurityAndAnalysisSpec struct {
@@ -137,6 +136,7 @@ type GitHubActorAllowanceSpec struct {
 	Teams []string `yaml:"teams,omitempty"`
 	Apps  []string `yaml:"apps,omitempty"`
 }
+*/
 
 type GitHubRepositoryManifest struct {
 	APIVersion string               `yaml:"apiVersion"`
@@ -195,264 +195,17 @@ func (s GitHubRepositorySpec) Validate() error {
 		return err
 	}
 
-	if err := validateFeaturesSpec(s.Features); err != nil {
-		return err
-	}
-
-	if err := validateInitializationSpec(s.Initialization); err != nil {
-		return err
-	}
-
-	if err := validateMergePolicySpec(s.MergePolicy); err != nil {
-		return err
-	}
-
-	if err := validateSecurityAndAnalysisSpec(s.SecurityAndAnalysis); err != nil {
-		return err
-	}
-
-	if err := validatePagesSpec(s.Pages); err != nil {
-		return err
-	}
-
-	if err := validateCustomPropertiesSpec(s.CustomProperties); err != nil {
-		return err
-	}
-
-	if err := validateBranchesSpec(s.Branches); err != nil {
-		return err
-	}
-
-	if s.MergePolicy != nil && explicitlyTrue(branchesRequireLinearHistory(s.Branches)) &&
-		explicitlyFalse(s.MergePolicy.AllowSquashMerge) && explicitlyFalse(s.MergePolicy.AllowRebaseMerge) {
-		return fmt.Errorf("spec.mergePolicy must allow squash or rebase merges when branch protection requires linear history")
-	}
-
-	return nil
-}
-
-func validateFeaturesSpec(spec *GitHubRepositoryFeaturesSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	if spec.HasDownloads != nil {
-		return fmt.Errorf("spec.features.hasDownloads is deprecated and unsupported")
-	}
-
-	return nil
-}
-
-func validateInitializationSpec(spec *GitHubRepositoryInitializationSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	if strings.TrimSpace(spec.GitignoreTemplate) == "" && spec.GitignoreTemplate != "" {
-		return fmt.Errorf("spec.initialization.gitignoreTemplate must not be blank")
-	}
-
-	if strings.TrimSpace(spec.LicenseTemplate) == "" && spec.LicenseTemplate != "" {
-		return fmt.Errorf("spec.initialization.licenseTemplate must not be blank")
-	}
-
-	return nil
-}
-
-func validateMergePolicySpec(spec *GitHubRepositoryMergePolicySpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	if spec.SquashMergeCommitTitle != nil && *spec.SquashMergeCommitTitle != "" &&
-		!contains([]string{"PR_TITLE", "COMMIT_OR_PR_TITLE"}, *spec.SquashMergeCommitTitle) {
-		return fmt.Errorf("unsupported spec.mergePolicy.squashMergeCommitTitle %q", *spec.SquashMergeCommitTitle)
-	}
-
-	if spec.SquashMergeCommitMessage != nil && *spec.SquashMergeCommitMessage != "" &&
-		!contains([]string{"PR_BODY", "COMMIT_MESSAGES", "BLANK"}, *spec.SquashMergeCommitMessage) {
-		return fmt.Errorf("unsupported spec.mergePolicy.squashMergeCommitMessage %q", *spec.SquashMergeCommitMessage)
-	}
-
-	if spec.SquashMergeCommitMessage != nil && *spec.SquashMergeCommitMessage != "" &&
-		(spec.SquashMergeCommitTitle == nil || *spec.SquashMergeCommitTitle == "") {
-		return fmt.Errorf("spec.mergePolicy.squashMergeCommitTitle is required when spec.mergePolicy.squashMergeCommitMessage is set")
-	}
-
-	if spec.MergeCommitTitle != nil && *spec.MergeCommitTitle != "" &&
-		!contains([]string{"PR_TITLE", "MERGE_MESSAGE"}, *spec.MergeCommitTitle) {
-		return fmt.Errorf("unsupported spec.mergePolicy.mergeCommitTitle %q", *spec.MergeCommitTitle)
-	}
-
-	if spec.MergeCommitMessage != nil && *spec.MergeCommitMessage != "" &&
-		!contains([]string{"PR_BODY", "PR_TITLE", "BLANK"}, *spec.MergeCommitMessage) {
-		return fmt.Errorf("unsupported spec.mergePolicy.mergeCommitMessage %q", *spec.MergeCommitMessage)
-	}
-
-	if spec.MergeCommitMessage != nil && *spec.MergeCommitMessage != "" &&
-		(spec.MergeCommitTitle == nil || *spec.MergeCommitTitle == "") {
-		return fmt.Errorf("spec.mergePolicy.mergeCommitTitle is required when spec.mergePolicy.mergeCommitMessage is set")
-	}
-
-	return nil
-}
-
-func validateSecurityAndAnalysisSpec(spec *GitHubRepositorySecurityAndAnalysisSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	settings := map[string]*GitHubRepositorySecuritySettingSpec{
-		"spec.securityAndAnalysis.advancedSecurity":                      spec.AdvancedSecurity,
-		"spec.securityAndAnalysis.codeSecurity":                          spec.CodeSecurity,
-		"spec.securityAndAnalysis.secretScanning":                        spec.SecretScanning,
-		"spec.securityAndAnalysis.secretScanningPushProtection":          spec.SecretScanningPushProtection,
-		"spec.securityAndAnalysis.secretScanningAIDetection":             spec.SecretScanningAIDetection,
-		"spec.securityAndAnalysis.secretScanningNonProviderPatterns":     spec.SecretScanningNonProviderPatterns,
-		"spec.securityAndAnalysis.secretScanningDelegatedAlertDismissal": spec.SecretScanningDelegatedAlertDismissal,
-		"spec.securityAndAnalysis.secretScanningDelegatedBypass":         spec.SecretScanningDelegatedBypass,
-	}
-
-	for field, setting := range settings {
-		if setting == nil {
-			continue
-		}
-
-		if setting.Status == "" {
-			return fmt.Errorf("missing %s.status", field)
-		}
-
-		if !contains([]string{"enabled", "disabled"}, setting.Status) {
-			return fmt.Errorf("unsupported %s.status %q", field, setting.Status)
-		}
-	}
-
-	return nil
-}
-
-func validatePagesSpec(spec *GitHubRepositoryPagesSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	if spec.BuildType != nil && *spec.BuildType != "" && !contains([]string{"legacy", "workflow"}, *spec.BuildType) {
-		return fmt.Errorf("unsupported spec.pages.buildType %q", *spec.BuildType)
-	}
-
-	if spec.Source == nil {
-		return nil
-	}
-
-	if spec.Source.Branch == "" {
-		return fmt.Errorf("missing spec.pages.source.branch")
-	}
-
-	if !contains([]string{"/", "/docs"}, spec.Source.Path) {
-		return fmt.Errorf("unsupported spec.pages.source.path %q", spec.Source.Path)
-	}
-
-	return nil
-}
-
-func validateCustomPropertiesSpec(specs []GitHubRepositoryCustomPropertySpec) error {
-	seen := make(map[string]struct{}, len(specs))
-	for _, spec := range specs {
-		if spec.Name == "" {
-			return fmt.Errorf("missing spec.customProperties.name")
-		}
-
-		key := strings.ToLower(spec.Name)
-		if _, ok := seen[key]; ok {
-			return fmt.Errorf("duplicate spec.customProperties name %q", spec.Name)
-		}
-
-		seen[key] = struct{}{}
-		if spec.Value == nil {
-			return fmt.Errorf("missing spec.customProperties[%s].value", spec.Name)
-		}
-	}
-
-	return nil
-}
-
-func validateBranchesSpec(specs []GitHubRepositoryBranchSpec) error {
-	seen := make(map[string]struct{}, len(specs))
-	for _, spec := range specs {
-		if spec.Name == "" {
-			return fmt.Errorf("missing spec.branches.name")
-		}
-
-		if strings.Contains(spec.Name, "*") {
-			return fmt.Errorf("spec.branches[%s].name must not contain wildcard characters", spec.Name)
-		}
-
-		key := strings.ToLower(spec.Name)
-		if _, ok := seen[key]; ok {
-			return fmt.Errorf("duplicate spec.branches name %q", spec.Name)
-		}
-
-		seen[key] = struct{}{}
-		if err := validateBranchProtectionSpec(spec.Name, spec.Protection); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func validateBranchProtectionSpec(branchName string, spec *GitHubRepositoryBranchProtectionSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	if spec.RequiredStatusChecks != nil {
-		for _, check := range spec.RequiredStatusChecks.Checks {
-			if check.Context == "" {
-				return fmt.Errorf("missing spec.branches[%s].protection.requiredStatusChecks.checks.context", branchName)
-			}
-		}
-	}
-
-	if spec.PullRequestReviews != nil && spec.PullRequestReviews.RequiredApprovingReviewCount != nil {
-		count := *spec.PullRequestReviews.RequiredApprovingReviewCount
-		if count < 0 || count > 6 {
-			return fmt.Errorf("spec.branches[%s].protection.pullRequestReviews.requiredApprovingReviewCount must be between 0 and 6", branchName)
-		}
-	}
-
-	if err := validateActorAllowanceSpec(branchName, "restrictions", spec.Restrictions); err != nil {
-		return err
-	}
-
-	if err := validateActorAllowanceSpec(branchName, "bypassPullRequestAllowances", spec.BypassPullRequestAllowances); err != nil {
-		return err
-	}
-
-	if spec.PullRequestReviews != nil {
-		if err := validateActorAllowanceSpec(branchName, "pullRequestReviews.dismissalRestrictions", spec.PullRequestReviews.DismissalRestrictions); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func validateActorAllowanceSpec(branchName, field string, spec *GitHubActorAllowanceSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	if err := validateUniqueNonEmptyStrings(fmt.Sprintf("spec.branches[%s].protection.%s.users", branchName, field), spec.Users); err != nil {
-		return err
-	}
-
-	if err := validateUniqueNonEmptyStrings(fmt.Sprintf("spec.branches[%s].protection.%s.teams", branchName, field), spec.Teams); err != nil {
-		return err
-	}
-
-	if err := validateUniqueNonEmptyStrings(fmt.Sprintf("spec.branches[%s].protection.%s.apps", branchName, field), spec.Apps); err != nil {
-		return err
-	}
+	// Previously active validation hooks kept here as commented reference:
+	// if err := validateInitializationSpec(s.Initialization); err != nil { return err }
+	// if err := validateMergePolicySpec(s.MergePolicy); err != nil { return err }
+	// if err := validateSecurityAndAnalysisSpec(s.SecurityAndAnalysis); err != nil { return err }
+	// if err := validatePagesSpec(s.Pages); err != nil { return err }
+	// if err := validateCustomPropertiesSpec(s.CustomProperties); err != nil { return err }
+	// if err := validateBranchesSpec(s.Branches); err != nil { return err }
+	// if s.MergePolicy != nil && explicitlyTrue(branchesRequireLinearHistory(s.Branches)) &&
+	// 	explicitlyFalse(s.MergePolicy.AllowSquashMerge) && explicitlyFalse(s.MergePolicy.AllowRebaseMerge) {
+	// 	return fmt.Errorf("spec.mergePolicy must allow squash or rebase merges when branch protection requires linear history")
+	// }
 
 	return nil
 }
@@ -476,20 +229,6 @@ func validateUniqueNonEmptyStrings(field string, values []string) error {
 	return nil
 }
 
-func branchesRequireLinearHistory(branches []GitHubRepositoryBranchSpec) *bool {
-	for _, branch := range branches {
-		if branch.Protection == nil || branch.Protection.RequiredLinearHistory == nil {
-			continue
-		}
-
-		if *branch.Protection.RequiredLinearHistory {
-			return branch.Protection.RequiredLinearHistory
-		}
-	}
-
-	return nil
-}
-
 func contains(values []string, candidate string) bool {
 	for _, value := range values {
 		if value == candidate {
@@ -500,10 +239,18 @@ func contains(values []string, candidate string) bool {
 	return false
 }
 
-func explicitlyTrue(value *bool) bool {
-	return value != nil && *value
-}
+/*
+Previous helper set retained as commented reference:
 
-func explicitlyFalse(value *bool) bool {
-	return value != nil && !*value
-}
+func validateInitializationSpec(spec *GitHubRepositoryInitializationSpec) error
+func validateMergePolicySpec(spec *GitHubRepositoryMergePolicySpec) error
+func validateSecurityAndAnalysisSpec(spec *GitHubRepositorySecurityAndAnalysisSpec) error
+func validatePagesSpec(spec *GitHubRepositoryPagesSpec) error
+func validateCustomPropertiesSpec(specs []GitHubRepositoryCustomPropertySpec) error
+func validateBranchesSpec(specs []GitHubRepositoryBranchSpec) error
+func validateBranchProtectionSpec(branchName string, spec *GitHubRepositoryBranchProtectionSpec) error
+func validateActorAllowanceSpec(branchName, field string, spec *GitHubActorAllowanceSpec) error
+func branchesRequireLinearHistory(branches []GitHubRepositoryBranchSpec) *bool
+func explicitlyTrue(value *bool) bool
+func explicitlyFalse(value *bool) bool
+*/
